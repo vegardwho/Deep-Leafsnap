@@ -13,4 +13,4 @@ leafsnap-dataset-test-images.csv
 *.pyc
 *.tar
 *.pth
-
+*output/
