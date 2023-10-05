@@ -33,6 +33,7 @@ NUM_CLASSES = 185
 NUM_EPOCHS = 35
 LEARNING_RATE = 1e-1
 USE_CUDA = torch.cuda.is_available()
+print(USE_CUDA)
 best_prec1 = 0
 classes = []
 
@@ -59,8 +60,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
     for i, (input, target) in enumerate(train_loader):
         # measure data loading time
         if USE_CUDA:
-            input = input.cuda(async=True)
-            target = target.cuda(async=True)
+            input = input.cuda(non_blocking=True)
+            target = target.cuda(non_blocking=True)
 
         data_time.update(time.time() - end)
 
@@ -73,9 +74,9 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         # measure accuracy and record loss
         prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
-        losses.update(loss.data[0], input.size(0))
-        top1.update(prec1[0], input.size(0))
-        top5.update(prec5[0], input.size(0))
+        losses.update(loss.data.item(), input.size(0))
+        top1.update(prec1.item(), input.size(0))
+        top5.update(prec5.item(), input.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -111,8 +112,8 @@ def validate(val_loader, model, criterion):
     end = time.time()
     for i, (input, target) in enumerate(val_loader):
         if USE_CUDA:
-            input = input.cuda(async=True)
-            target = target.cuda(async=True)
+            input = input.cuda(non_blocking=True)
+            target = target.cuda(non_blocking=True)
         input_var = torch.autograd.Variable(input, volatile=True)
         target_var = torch.autograd.Variable(target, volatile=True)
 
@@ -122,9 +123,11 @@ def validate(val_loader, model, criterion):
 
         # measure accuracy and record loss
         prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
-        losses.update(loss.data[0], input.size(0))
-        top1.update(prec1[0], input.size(0))
-        top5.update(prec5[0], input.size(0))
+        
+        prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
+        losses.update(loss.data.item(), input.size(0))
+        top1.update(prec1.item(), input.size(0))
+        top5.update(prec5.item(), input.size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -165,16 +168,18 @@ def adjust_learning_rate(optimizer, epoch):
 def accuracy(output, target, topk=(1,)):
     """Computes the precision@k for the specified values of k"""
     maxk = max(topk)
+    
     batch_size = target.size(0)
 
     _, pred = output.topk(maxk, 1, True, True)
     pred = pred.t()
-    correct = pred.eq(target.view(1, -1).expand_as(pred))
 
+    correct = pred.eq(target.view(1, -1).expand_as(pred))
+    
     res = []
     for k in topk:
-        correct_k = correct[:k].view(-1).float().sum(0)
-        res.append(correct_k.mul_(100.0 / batch_size))
+    	correct_k = torch.sum(torch.reshape(correct[:k],(-1,) ).float()) #.double().sum(0)
+    	res.append(correct_k.mul_(100.0 / batch_size))
     return res
 
 print('\n[INFO] Creating Model')
@@ -192,7 +197,7 @@ if USE_CUDA:
     criterion = criterion.cuda()
 optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE,
                       momentum=0.9, weight_decay=1e-4, nesterov=True)
-
+start_epoch = 0
 if args.resume:
     if os.path.isfile(args.resume):
         print("=> loading checkpoint '{}'".format(args.resume))
@@ -203,6 +208,7 @@ if args.resume:
         optimizer.load_state_dict(checkpoint['optimizer'])
         print("=> loaded checkpoint '{}' (epoch {})"
               .format(args.resume, checkpoint['epoch']))
+        start_epoch = checkpoint['epoch']
     else:
         print("=> no checkpoint found at '{}'".format(args.resume))
 
@@ -224,7 +230,7 @@ train_loader = torch.utils.data.DataLoader(data_train, batch_size=64, shuffle=Tr
 val_loader = torch.utils.data.DataLoader(data_test, batch_size=64, shuffle=False, num_workers=2)
 
 print('\n[INFO] Training Started')
-for epoch in range(1, NUM_EPOCHS + 1):
+for epoch in range(start_epoch, NUM_EPOCHS + 1):
     adjust_learning_rate(optimizer, epoch)
 
     # train for one epoch

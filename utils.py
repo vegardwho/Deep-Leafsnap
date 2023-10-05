@@ -13,7 +13,7 @@ from scipy import stats
 from skimage import img_as_float
 from skimage import io
 from sklearn import preprocessing
-
+from imageio import imread 
 
 def rotate(image, angle):
     (h, w) = image.shape[:2]
@@ -28,17 +28,20 @@ def rotate(image, angle):
     return cv2.warpAffine(image, M, (nW, nH))
 
 
-def load_image_and_preprocess(path, segmented_path):
+def load_image_and_preprocess(path, segmented_path, resolution=64):
     # Open image from disk
-    image = misc.imread(path.strip())
-    segmented_image = misc.imread(segmented_path.strip())
+    image = cv2.imread(path.strip())
+    segmented_image = cv2.imread(segmented_path.strip())
 
     img = segmented_image
     h, w = img.shape[:2]
     height, width = h, w
     # print('Height: {:3d}, Width: {:4d}\n'.format(height,width))
-    ret, thresh = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
-    _, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+   
+    ret, thresh = cv2.threshold(img, 127, 255, 0,cv2.THRESH_BINARY)
+    thresh = cv2.cvtColor(thresh, cv2.COLOR_BGR2GRAY)
+    
+    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     # Calculate bounding rectangles for each contour.
     rects = [cv2.boundingRect(cnt) for cnt in contours]
     if rects == []:
@@ -81,7 +84,8 @@ def load_image_and_preprocess(path, segmented_path):
 
     # Use the rectangle to crop on original image
     img = image[top_y:bottom_y, left_x:right_x]
-    img = misc.imresize(img, (224, 224))
+    img = np.array(Image.fromarray(img).resize((resolution, resolution)))
+    #img = misc.imresize(img, (224, 224))
     return img
 
 

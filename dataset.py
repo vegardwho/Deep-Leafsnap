@@ -32,13 +32,15 @@ data = pd.read_csv(DATA_FILE, names=columns, header=1)
 bad_indices = []
 bad_lab_species_pattern = '|'.join(bad_lab_species)
 for i in range(len(data)):
-    if ((data.get_value(i, 'species') in bad_lab_species_pattern) and (data.get_value(i, 'source').lower() in 'lab')):
+    if ((data['species'].iloc[i]) in bad_lab_species_pattern) and ((data['source'].iloc[i].lower() in 'lab')):
         bad_indices.append(i)
 data.drop(data.index[bad_indices], inplace=True)
 
 # Split train test
 train_df = data.sample(frac=0.80, random_state=7)
 test_df = data.drop(train_df.index)
+print(test_df)
+
 
 images_train_original = train_df['image_pat'].tolist()
 images_train_segmented = train_df['segmented_path'].tolist()
@@ -69,7 +71,7 @@ def save_images(images, species, directory='train', csv_name='temp.csv', augment
 
     for index in range(len(images['original'])):
         image = utils.load_image_and_preprocess(
-            images['original'][index], images['segmented'][index])
+            images['original'][index], images['segmented'][index], resolution = 64)
         if type(image) != type([]):
             image_dir = '{}/{}'.format(write_dir, species[index].lower().replace(' ', '_'))
             if not os.path.exists(image_dir):
@@ -100,15 +102,15 @@ def save_images(images, species, directory='train', csv_name='temp.csv', augment
 
                     angle += 90
                     count += 1
-
+                    
         if index > 0 and index % 1000 == 0:
             print('[INFO] Processed {:5d} images'.format(index))
 
     print('[INFO] Final Number of {} Samples: {}'.format(directory, len(image_paths)))
     raw_data = {'image_paths': image_paths,
                 'species': image_species}
-    # df = pd.DataFrame(raw_data, columns = ['image_paths', 'species'])
-    # df.to_csv(csv_name)
+    df = pd.DataFrame(raw_data, columns = ['image_paths', 'species'])
+    df.to_csv(csv_name)
 
 save_images(images_train, species_train, directory='train',
             csv_name='leafsnap-dataset-train-images.csv', augment=True)
